@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>线下扫街 · 移动采集</title>
+<script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#262626; }
+  #app { max-width:480px; margin:0 auto; min-height:100vh; background:#f0f2f5; padding-bottom:40px; }
+
+  /* 头部 */
+  .m-header { background:linear-gradient(135deg,#ff7a45 0%,#fa8c16 50%,#ffa940 100%); padding:20px 16px 44px; color:#fff; border-radius:0 0 20px 20px; }
+  .m-header h1 { font-size:20px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .m-header p { font-size:12px; opacity:.9; margin-top:6px; }
+  .sync-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,.22); border-radius:12px; padding:3px 10px; font-size:11px; margin-top:10px; }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:#52c41a; box-shadow:0 0 6px #52c41a; }
+
+  /* 模式切换 */
+  .mode-tabs { display:flex; gap:10px; margin:-28px 16px 14px; position:relative; z-index:2; }
+  .mode-tab { flex:1; background:#fff; border-radius:12px; padding:14px 8px; text-align:center; box-shadow:0 2px 10px rgba(0,0,0,.08); cursor:pointer; border:2px solid transparent; transition:all .2s; }
+  .mode-tab .t-icon { font-size:22px; }
+  .mode-tab .t-name { font-size:14px; font-weight:600; margin-top:4px; }
+  .mode-tab .t-desc { font-size:11px; color:#8c8c8c; margin-top:2px; }
+  .mode-tab.active { border-color:#fa8c16; background:#fff7e6; }
+  .mode-tab.active .t-name { color:#fa8c16; }
+
+  /* 卡片 */
+  .m-card { background:#fff; border-radius:12px; margin:0 16px 14px; padding:16px; box-shadow:0 1px 6px rgba(0,0,0,.06); }
+  .m-card-title { font-size:14px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
+  .m-card-title::before { content:''; width:4px; height:14px; background:#fa8c16; border-radius:2px; }
+
+  /* 客户池选择 */
+  .pool-search { width:100%; padding:10px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px; margin-bottom:10px; outline:none; }
+  .pool-search:focus { border-color:#fa8c16; }
+  .pool-list { max-height:260px; overflow-y:auto; }
+  .pool-item { display:flex; justify-content:space-between; align-items:center; padding:12px 10px; border-radius:8px; cursor:pointer; border:1px solid transparent; margin-bottom:6px; background:#fafafa; }
+  .pool-item.selected { border-color:#fa8c16; background:#fff7e6; }
+  .pool-item .p-name { font-size:14px; font-weight:600; }
+  .pool-item .p-meta { font-size:11px; color:#8c8c8c; margin-top:3px; }
+  .pool-item .p-check { color:#fa8c16; font-size:16px; font-weight:700; }
+  .p-tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:4px; margin-right:4px; }
+  .p-tag.ind { background:#fff2e8; color:#fa541c; }
+  .p-tag.com { background:#e6f7ff; color:#1890ff; }
+  .p-tag.stage { background:#f6ffed; color:#52c41a; }
+  .pool-empty { text-align:center; color:#999; font-size:13px; padding:24px 0; }
+
+  /* 表单 */
+  .f-item { margin-bottom:14px; }
+  .f-label { font-size:13px; color:#595959; margin-bottom:6px; display:block; }
+  .f-label .req { color:#ff4d4f; margin-left:2px; }
+  .f-input, .f-select, .f-textarea { width:100%; padding:11px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:15px; outline:none; background:#fff; font-family:inherit; }
+  .f-input:focus, .f-select:focus, .f-textarea:focus { border-color:#fa8c16; box-shadow:0 0 0 2px rgba(250,140,22,.12); }
+  .f-textarea { resize:none; }
+  .f-row { display:flex; gap:10px; }
+  .f-row .f-item { flex:1; }
+  .intent-group { display:flex; gap:8px; }
+  .intent-btn { flex:1; text-align:center; padding:9px 0; border-radius:8px; border:1px solid #d9d9d9; font-size:14px; cursor:pointer; background:#fff; }
+  .intent-btn.on-high { background:#fff1f0; border-color:#ff4d4f; color:#ff4d4f; font-weight:600; }
+  .intent-btn.on-mid { background:#fff7e6; border-color:#fa8c16; color:#fa8c16; font-weight:600; }
+  .intent-btn.on-low { background:#f6ffed; border-color:#52c41a; color:#52c41a; font-weight:600; }
+  .intent-btn.on-none { background:#fafafa; border-color:#8c8c8c; color:#8c8c8c; font-weight:600; }
+  .type-group { display:flex; gap:8px; }
+  .type-btn { flex:1; text-align:center; padding:9px 0; border-radius:8px; border:1px solid #d9d9d9; font-size:14px; cursor:pointer; background:#fff; }
+  .type-btn.on { background:#fff7e6; border-color:#fa8c16; color:#fa8c16; font-weight:600; }
+
+  /* 提交按钮 */
+  .submit-btn { display:block; width:calc(100% - 32px); margin:6px 16px 0; padding:14px; border:none; border-radius:12px; background:linear-gradient(90deg,#ff7a45,#fa8c16); color:#fff; font-size:16px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(250,140,22,.35); }
+  .submit-btn:active { transform:scale(.98); }
+
+  /* 同步记录 */
+  .recent-item { padding:10px 0; border-bottom:1px solid #f0f0f0; }
+  .recent-item:last-child { border-bottom:none; }
+  .recent-name { font-size:14px; font-weight:600; }
+  .recent-meta { font-size:11px; color:#8c8c8c; margin-top:4px; }
+  .recent-tag { float:right; font-size:10px; background:#f6ffed; color:#52c41a; border:1px solid #b7eb8f; border-radius:4px; padding:1px 6px; }
+
+  /* Toast */
+  .toast { position:fixed; left:50%; top:18%; transform:translateX(-50%); background:rgba(0,0,0,.78); color:#fff; padding:14px 20px; border-radius:10px; font-size:14px; z-index:99; max-width:80%; text-align:center; line-height:1.6; }
+  .toast .tt { font-size:16px; font-weight:700; margin-bottom:4px; }
+  .fade-enter-active,.fade-leave-active { transition:opacity .3s; }
+  .fade-enter-from,.fade-leave-to { opacity:0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="m-header">
+    <h1>🚶 线下扫街采集</h1>
+    <p>走访信息实时同步至 PC 端「客户开发管理 - 线下扫街记录」，新客户自动回填客户池</p>
+    <span class="sync-badge"><span class="sync-dot"></span>已与管理系统联通 · {{ poolList.length }} 户池中待访可选</span>
+  </div>
+
+  <!-- 模式切换 -->
+  <div class="mode-tabs">
+    <div class="mode-tab" :class="{active: mode==='new'}" @click="switchMode('new')">
+      <div class="t-icon">➕</div>
+      <div class="t-name">新增客户</div>
+      <div class="t-desc">扫街发现的新线索</div>
+    </div>
+    <div class="mode-tab" :class="{active: mode==='pool'}" @click="switchMode('pool')">
+      <div class="t-icon">📋</div>
+      <div class="t-name">客户池选择</div>
+      <div class="t-desc">走访池中待访客户</div>
+    </div>
+  </div>
+
+  <!-- 客户池选择 -->
+  <div class="m-card" v-if="mode==='pool'">
+    <div class="m-card-title">选择走访客户</div>
+    <input class="pool-search" v-model="poolSearch" placeholder="🔍 搜索客户名称..." />
+    <div class="pool-list">
+      <div class="pool-item" v-for="c in poolFiltered" :key="c.id" :class="{selected: form.poolCustomerId===c.id}" @click="selectPool(c)">
+        <div>
+          <div class="p-name">{{ c.name }}</div>
+          <div class="p-meta">
+            <span class="p-tag" :class="c.type==='工业'?'ind':'com'">{{ c.type }}</span>
+            <span class="p-tag stage">{{ c.stage }}</span>
+            <span>{{ c.scale }}</span>
+          </div>
+        </div>
+        <div class="p-check" v-if="form.poolCustomerId===c.id">✓</div>
+      </div>
+      <div class="pool-empty" v-if="poolFiltered.length===0">未找到匹配客户，可切换「新增客户」手动录入</div>
+    </div>
+  </div>
+
+  <!-- 表单 -->
+  <div class="m-card">
+    <div class="m-card-title">走访信息</div>
+
+    <div class="f-item" v-if="mode==='new'">
+      <div class="f-label">客户类型</div>
+      <div class="type-group">
+        <div class="type-btn" :class="{on: form.type==='工业'}" @click="form.type='工业'">🏭 工业</div>
+        <div class="type-btn" :class="{on: form.type==='商服'}" @click="form.type='商服'">🏪 商服</div>
+      </div>
+    </div>
+
+    <div class="f-item">
+      <label class="f-label">客户名称<span class="req">*</span></label>
+      <input class="f-input" v-model="form.name" :readonly="mode==='pool'" :placeholder="mode==='pool' ? '请先在上方选择客户' : '请输入客户名称'" :style="mode==='pool' ? 'background:#fafafa;color:#595959;' : ''" />
+    </div>
+
+    <div class="f-item">
+      <label class="f-label">所在地址<span class="req">*</span></label>
+      <input class="f-input" v-model="form.address" placeholder="请输入客户所在地址" />
+    </div>
+
+    <div class="f-row">
+      <div class="f-item">
+        <label class="f-label">联系人</label>
+        <input class="f-input" v-model="form.contact" placeholder="姓名" />
+      </div>
+      <div class="f-item">
+        <label class="f-label">联系电话</label>
+        <input class="f-input" v-model="form.phone" type="tel" placeholder="手机号/座机" />
+      </div>
+    </div>
+
+    <div class="f-item">
+      <label class="f-label">用气规模</label>
+      <input class="f-input" v-model="form.scale" placeholder="如：月用气2万方" />
+    </div>
+
+    <div class="f-item">
+      <label class="f-label">意向初判</label>
+      <div class="intent-group">
+        <div class="intent-btn" :class="form.intentLevel==='高'?'on-high':''" @click="form.intentLevel='高'">高</div>
+        <div class="intent-btn" :class="form.intentLevel==='中'?'on-mid':''" @click="form.intentLevel='中'">中</div>
+        <div class="intent-btn" :class="form.intentLevel==='低'?'on-low':''" @click="form.intentLevel='低'">低</div>
+        <div class="intent-btn" :class="form.intentLevel==='无'?'on-none':''" @click="form.intentLevel='无'">无</div>
+      </div>
+    </div>
+
+    <div class="f-row">
+      <div class="f-item">
+        <label class="f-label">走访人</label>
+        <select class="f-select" v-model="form.visitor">
+          <option>张经理</option><option>李主管</option><option>王经理</option><option>赵经理</option>
+        </select>
+      </div>
+      <div class="f-item">
+        <label class="f-label">走访日期</label>
+        <input class="f-input" v-model="form.visitedAt" type="date" />
+      </div>
+    </div>
+
+    <div class="f-item" style="margin-bottom:0;">
+      <label class="f-label">走访备注</label>
+      <textarea class="f-textarea" v-model="form.note" rows="2" placeholder="走访情况、用气需求等"></textarea>
+    </div>
+  </div>
+
+  <button class="submit-btn" @click="submit">✅ 提交走访记录</button>
+
+  <!-- 最近同步 -->
+  <div class="m-card" style="margin-top:14px;" v-if="recentList.length">
+    <div class="m-card-title">最近同步的记录</div>
+    <div class="recent-item" v-for="r in recentList" :key="r.id">
+      <span class="recent-tag">已同步</span>
+      <div class="recent-name">{{ r.name }}</div>
+      <div class="recent-meta">{{ r.visitedAt }} · {{ r.visitor }} · 意向{{ r.intentLevel }}<template v-if="r.isNewPool"> · 新客户已回填客户池</template></div>
+    </div>
+  </div>
+
+  <transition name="fade">
+    <div class="toast" v-if="toast.show">
+      <div class="tt">{{ toast.title }}</div>
+      <div>{{ toast.msg }}</div>
+    </div>
+  </transition>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+
+// 与 PC 端 index.html 约定的 localStorage 键
+const LS_KEYS = { pool: 'crm_customerPool', street: 'crm_streetRecords', activities: 'crm_devActivities' };
+
+// PC端未打开过时的兜底客户池（与系统内置数据一致，仅开发中客户）
+const FALLBACK_POOL = [
+  { id:'P201', name:'济南新材料产业园', type:'工业', source:'摸排录入', intentLevel:'高', intentInitial:'高', stage:'跟进中', scale:'月用气8万方', creator:'张经理', createdAt:'2025-06-01', note:'重点跟进，扩产需求强烈', lastVisit:'2025-07-12' },
+  { id:'P202', name:'济阳食品工业园', type:'工业', source:'摸排录入', intentLevel:'中', intentInitial:'中', stage:'意向客户', scale:'月用气5万方', creator:'李主管', createdAt:'2025-06-10', note:'有管道覆盖意向', lastVisit:'2025-07-08' },
+  { id:'P203', name:'历下商业综合体', type:'商服', source:'摸排录入', intentLevel:'中', intentInitial:'中', stage:'意向客户', scale:'月用气2万方', creator:'王经理', createdAt:'2025-06-15', note:'商业综合体，用气稳定', lastVisit:'2025-07-10' },
+  { id:'P204', name:'章丘建材产业园', type:'工业', source:'扫街反填', intentLevel:'低', intentInitial:'低', stage:'已走访', scale:'月用气3万方', creator:'李主管', createdAt:'2025-07-01', note:'负责人已联系', lastVisit:'2025-07-05' },
+  { id:'P205', name:'长清大学城商业街', type:'商服', source:'摸排录入', intentLevel:'无', intentInitial:'暂无', stage:'池中待访', scale:'待评估', creator:'赵经理', createdAt:'2025-07-05', note:'商户集中，适合管道供气', lastVisit:null },
+  { id:'P206', name:'平阴工业园区', type:'工业', source:'摸排录入', intentLevel:'中', intentInitial:'中', stage:'跟进中', scale:'月用气10万方', creator:'张经理', createdAt:'2025-07-08', note:'大型工业园，用气潜力大', lastVisit:'2025-07-14' },
+  { id:'P207', name:'商河化工新区', type:'工业', source:'扫街反填', intentLevel:'高', intentInitial:'高', stage:'意向客户', scale:'月用气15万方', creator:'李主管', createdAt:'2025-07-10', note:'龙头企业，优先跟进', lastVisit:'2025-07-15' },
+  { id:'P208', name:'莱芜钢铁配套园', type:'工业', source:'摸排录入', intentLevel:'无', intentInitial:'暂无', stage:'池中待访', scale:'待评估', creator:'王经理', createdAt:'2025-07-12', note:'大型产业园区', lastVisit:null },
+];
+
+const readLS = (key, fallback) => {
+  try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return Array.isArray(v) ? v : fallback; }
+  catch(e) { return fallback; }
+};
+const writeLS = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} };
+
+const today = () => new Date().toISOString().slice(0, 10);
+const nowTime = () => {
+  const d = new Date();
+  return today() + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+};
+
+createApp({
+  setup() {
+    const mode = ref('new');
+    const poolList = ref([]);
+    const poolSearch = ref('');
+    const toast = ref({ show:false, title:'', msg:'' });
+    const recentList = ref(JSON.parse(sessionStorage.getItem('crm_mobile_recent') || '[]'));
+
+    const blankForm = () => ({
+      poolCustomerId:'', type:'工业', name:'', address:'', contact:'', phone:'',
+      scale:'', intentLevel:'中', visitor:'张经理', visitedAt: today(), note:''
+    });
+    const form = ref(blankForm());
+
+    const loadPool = () => {
+      const all = readLS(LS_KEYS.pool, null);
+      // 仅"池中待访"客户可选（尚未走访的池内客户）；LS无数据时用兜底数据
+      const src = (all && all.length) ? all : FALLBACK_POOL;
+      poolList.value = src.filter(c => c.stage === '池中待访');
+    };
+    onMounted(() => {
+      loadPool();
+      // PC端若正在运行并改动了客户池，本页面实时跟进
+      window.addEventListener('storage', (e) => {
+        if (e.key === LS_KEYS.pool && e.newValue) {
+          try { poolList.value = JSON.parse(e.newValue).filter(c => c.stage === '池中待访'); } catch(err) {}
+        }
+      });
+    });
+
+    const poolFiltered = computed(() => {
+      const kw = poolSearch.value.trim();
+      if (!kw) return poolList.value;
+      return poolList.value.filter(c => c.name.includes(kw));
+    });
+
+    const switchMode = (m) => { mode.value = m; form.value = blankForm(); };
+    const selectPool = (c) => {
+      form.value.poolCustomerId = c.id;
+      form.value.name = c.name;
+      form.value.type = c.type;
+      form.value.scale = (c.scale && c.scale !== '待评估') ? c.scale : '';
+      form.value.note = c.note || '';
+    };
+
+    const showToast = (title, msg) => {
+      toast.value = { show:true, title, msg };
+      setTimeout(() => { toast.value.show = false; }, 3200);
+    };
+
+    const submit = () => {
+      const f = form.value;
+      if (mode.value === 'pool' && !f.poolCustomerId) { showToast('⚠️ 未选择客户', '请从客户池中选择本次走访的客户'); return; }
+      if (!f.name.trim()) { showToast('⚠️ 信息不完整', '请填写客户名称'); return; }
+      if (!f.address.trim()) { showToast('⚠️ 信息不完整', '请填写所在地址'); return; }
+
+      // 读取最新数据（可能PC端刚更新过）
+      const pool = readLS(LS_KEYS.pool, FALLBACK_POOL);
+      const street = readLS(LS_KEYS.street, []);
+      const activities = readLS(LS_KEYS.activities, []);
+      let isNewPool = false;
+
+      // 1) 生成扫街记录（字段与PC端 MOCK_STREET_RECORDS 一致）
+      const record = {
+        id: 'S' + Date.now(),
+        name: f.name.trim(),
+        address: f.address.trim(),
+        contact: f.contact.trim(),
+        phone: f.phone.trim(),
+        scale: f.scale.trim() || '待评估',
+        intentLevel: f.intentLevel,
+        intentInitial: f.intentLevel,
+        note: f.note.trim(),
+        visitor: f.visitor,
+        visitedAt: f.visitedAt || today(),
+        poolCustomerId: f.poolCustomerId || null,
+        inPool: !!f.poolCustomerId
+      };
+
+      // 2) 客户池处理
+      const stage = f.intentLevel === '无' ? '已走访' : '意向客户';
+      if (f.poolCustomerId) {
+        // 从客户池选择：更新阶段/意向/最近走访/规模
+        const idx = pool.findIndex(c => c.id === f.poolCustomerId);
+        if (idx >= 0) {
+          pool[idx].stage = stage;
+          pool[idx].intentLevel = f.intentLevel;
+          pool[idx].intentInitial = pool[idx].intentInitial || f.intentLevel;
+          pool[idx].lastVisit = record.visitedAt;
+          if (f.scale.trim()) pool[idx].scale = f.scale.trim();
+          if (f.note.trim()) pool[idx].note = f.note.trim();
+        }
+      } else {
+        // 手动新增：按名称查重
+        const existIdx = pool.findIndex(c => c.name.trim() === f.name.trim());
+        if (existIdx >= 0) {
+          pool[existIdx].stage = stage;
+          pool[existIdx].intentLevel = f.intentLevel;
+          pool[existIdx].lastVisit = record.visitedAt;
+          if (f.scale.trim()) pool[existIdx].scale = f.scale.trim();
+          record.poolCustomerId = pool[existIdx].id;
+          record.inPool = true;
+        } else {
+          // 未命中：新客户回填客户池（来源：扫街反填）
+          const newCustomer = {
+            id: 'P' + Date.now(),
+            name: f.name.trim(),
+            type: f.type,
+            source: '扫街反填',
+            intentLevel: f.intentLevel,
+            intentInitial: f.intentLevel,
+            stage: stage,
+            scale: f.scale.trim() || '待评估',
+            creator: f.visitor,
+            createdAt: record.visitedAt,
+            note: f.note.trim(),
+            lastVisit: record.visitedAt
+          };
+          pool.unshift(newCustomer);
+          record.poolCustomerId = newCustomer.id;
+          record.inPool = true;
+          isNewPool = true;
+        }
+      }
+
+      // 3) 写回 localStorage（PC端通过 storage 事件实时接收）
+      street.unshift(record);
+      activities.unshift({ id:'A' + Date.now(), type:'street', customer: record.name, action:`移动端扫街走访，意向：${f.intentLevel}`, person: f.visitor, time: nowTime() });
+      writeLS(LS_KEYS.pool, pool);
+      writeLS(LS_KEYS.street, street);
+      writeLS(LS_KEYS.activities, activities);
+
+      // 4) 反馈与重置
+      recentList.value.unshift({ id: record.id, name: record.name, visitedAt: record.visitedAt, visitor: record.visitor, intentLevel: record.intentLevel, isNewPool });
+      sessionStorage.setItem('crm_mobile_recent', JSON.stringify(recentList.value.slice(0, 10)));
+      loadPool();
+      showToast('✅ 提交成功', isNewPool
+        ? `「${record.name}」已同步至扫街记录，并作为新客户回填客户池`
+        : `「${record.name}」走访记录已同步至PC端扫街记录`);
+      form.value = blankForm();
+    };
+
+    return { mode, poolSearch, poolList, poolFiltered, form, toast, recentList, switchMode, selectPool, submit };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
